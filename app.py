@@ -11,7 +11,6 @@ import logs
 import translate
 import backup
 
-
 # ---------------------------------------------------------
 # 初始化
 # ---------------------------------------------------------
@@ -59,7 +58,8 @@ def login_view():
             st.session_state["username"] = user["username"]
             st.session_state["role"] = user["role"]
             st.session_state["lang"] = user.get("language", "中文")
-            st.experimental_rerun()
+            # use new API
+            st.rerun()
         else:
             st.error("账号或密码错误 / Incorrect username or password")
 
@@ -81,9 +81,9 @@ def top_nav():
     }
 
     if st.session_state.get("role") != "admin":
-        del pages["用户管理（管理员）"]
-        del pages["翻译管理（管理员）"]
-        del pages["GitHub 备份（管理员）"]
+        pages.pop("用户管理（管理员）", None)
+        pages.pop("翻译管理（管理员）", None)
+        pages.pop("GitHub 备份（管理员）", None)
 
     choice = st.sidebar.radio("选择页面", list(pages.keys()))
     return pages[choice]
@@ -120,7 +120,7 @@ def page_customers():
         if st.button("提交保存"):
             cid = customers.insert_customer(rec)
             st.success(f"客户已添加：{cid}")
-            st.experimental_rerun()
+            st.rerun()
 
     # --------------------
     # 显示客户表格
@@ -154,18 +154,31 @@ def page_customers():
                 for field in ["name", "whatsapp", "line", "telegram", "country", "city",
                               "age", "job", "income", "marital_status", "deal_amount",
                               "level", "progress", "main_owner", "assistant", "notes"]:
-                    updates[field] = st.text_input(field, value=str(cust.get(field)))
+                    # show current value as string to avoid NoneType issues
+                    updates[field] = st.text_input(field, value=str(cust.get(field, "")))
 
                 if st.form_submit_button("提交更新"):
+                    # cast numeric fields if necessary
+                    if "age" in updates:
+                        try:
+                            updates["age"] = int(updates["age"])
+                        except Exception:
+                            updates["age"] = None
+                    if "deal_amount" in updates:
+                        try:
+                            updates["deal_amount"] = float(updates["deal_amount"])
+                        except Exception:
+                            updates["deal_amount"] = 0.0
+
                     customers.update_customer(cid, updates, operator=st.session_state["username"])
                     st.success("已更新")
-                    st.experimental_rerun()
+                    st.rerun()
 
             if st.checkbox("确认删除该客户"):
                 if st.button("删除客户"):
                     customers.delete_customer(cid, operator=st.session_state["username"])
                     st.success("客户已删除")
-                    st.experimental_rerun()
+                    st.rerun()
 
 
 # ---------------------------------------------------------
@@ -183,16 +196,16 @@ def page_followups():
         st.error("此客户不存在")
         return
 
-    st.write("客户：", cust["name"])
+    st.write("客户：", cust.get("name"))
 
     # 添加记录
     with st.form("add_followup"):
         note = st.text_area("跟进内容")
         next_action = st.text_input("下一步动作")
         if st.form_submit_button("提交"):
-            customers.add_followup(cid, st.session_state["username"], note, next_action)
+            customers.add_followup(cid, st.session_state.get("username", "system"), note, next_action)
             st.success("跟进记录已创建")
-            st.experimental_rerun()
+            st.rerun()
 
     # 显示记录
     df = customers.list_followups_df(cid)
@@ -211,7 +224,7 @@ def page_charts():
         return
 
     # 负责人筛选
-    owner = st.selectbox("选择负责人", ["全部"] + sorted(df["main_owner"].unique().tolist()))
+    owner = st.selectbox("选择负责人", ["全部"] + sorted(df["main_owner"].dropna().unique().tolist()))
     if owner != "全部":
         df = df[df["main_owner"] == owner]
 
@@ -219,17 +232,21 @@ def page_charts():
     t = st.selectbox("时间区间", ["全部", "最近 7 天", "最近 30 天", "最近 90 天"])
     if t != "全部":
         days = {"最近 7 天": 7, "最近 30 天": 30, "最近 90 天": 90}[t]
-        df = df[df["created_at"] >= (datetime.utcnow() - timedelta(days=days)).isoformat()]
+        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        df = df[df["created_at"] >= cutoff]
 
     st.write("当前数据量：", len(df))
 
     # 来源占比
     st.subheader("客户等级占比")
-    chart = alt.Chart(df).mark_arc().encode(
-        theta="count()",
-        color="level"
-    )
-    st.altair_chart(chart, use_container_width=True)
+    try:
+        chart = alt.Chart(df).mark_arc().encode(
+            theta="count()",
+            color="level"
+        )
+        st.altair_chart(chart, use_container_width=True)
+    except Exception:
+        st.info("无法生成占比图（数据问题）")
 
     # 成交趋势
     st.subheader("成交趋势")
@@ -237,12 +254,20 @@ def page_charts():
     if df2.empty:
         st.info("暂无成交数据")
     else:
-        df2["date"] = df2["created_at"].str[:10]
-        line = alt.Chart(df2).mark_line().encode(
-            x="date:T",
-            y="count()"
-        )
-        st.altair_chart(line, use_container_width=True)
+        # create date column safely
+        df2 = df2.copy()
+        if "created_at" in df2.columns:
+            df2["date"] = df2["created_at"].astype(str).str[:10]
+        else:
+            df2["date"] = ""
+        try:
+            line = alt.Chart(df2).mark_line().encode(
+                x="date:T",
+                y="count()"
+            )
+            st.altair_chart(line, use_container_width=True)
+        except Exception:
+            st.info("无法生成趋势图（数据问题）")
 
 
 # ---------------------------------------------------------
@@ -272,7 +297,7 @@ def page_users():
         if st.form_submit_button("提交"):
             auth.add_user(u, p, r, lang)
             st.success("用户已创建")
-            st.experimental_rerun()
+            st.rerun()
 
     st.subheader("重置密码")
     with st.form("reset_pass"):
@@ -287,7 +312,7 @@ def page_users():
     if st.button("删除用户"):
         auth.delete_user(d)
         st.success("用户已删除")
-        st.experimental_rerun()
+        st.rerun()
 
 
 # ---------------------------------------------------------
@@ -307,7 +332,7 @@ def page_translate():
             obj = eval(new)
             translate.save_translations(obj)
             st.success("翻译已保存")
-            st.experimental_rerun()
+            st.rerun()
         except Exception as e:
             st.error(str(e))
 
@@ -321,7 +346,7 @@ def page_backup():
     st.info("自动备份使用 Streamlit Secrets 中的： GITHUB_TOKEN / GITHUB_REPO / GITHUB_USERNAME")
 
     if st.button("立即备份数据库"):
-        ok, msg = backup.backup_db_to_github(st.secrets, actor=st.session_state["username"])
+        ok, msg = backup.backup_db_to_github(st.secrets, actor=st.session_state.get("username", "system"))
         if ok:
             st.success("备份成功")
         else:
