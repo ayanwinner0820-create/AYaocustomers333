@@ -1,6 +1,4 @@
-# app.py — 完整可运行版本
-# 依赖：auth.py, customers.py, translate.py, backup.py, logs.py, db.py, config.py 等同目录模块
-
+# app.py — 完整版（五语、多页面、菜单B、表单完善、导出、备份、权限）
 import streamlit as st
 import pandas as pd
 import altair as alt
@@ -15,17 +13,12 @@ import translate
 import backup
 import logs
 
-# ---------------------------
-# 初始化
-# ---------------------------
+# ------------- 初始化 -------------
 st.set_page_config(page_title=PAGE_TITLE, page_icon=PAGE_ICON, layout="wide", initial_sidebar_state="expanded")
-init_db()  # ensure DB and default admin exist
+init_db()
 
-# load translations (translate.load_translations should return dict keyed by language names)
-RAW_TRANSLATIONS = translate.load_translations()
-
-# default i18n fallback structure using your confirmed keys:
-DEFAULT_I18N = {
+# ------------- 完整翻译字典（翻译方案 1：五种语言） -------------
+TRANSLATIONS = {
     "中文": {
         "language_label": "选择语言",
         "menu_navigation": "导航",
@@ -61,6 +54,7 @@ DEFAULT_I18N = {
         "level_pie": "客户等级占比",
         "trend": "成交趋势",
         "no_deal": "暂无成交数据",
+        "chart_error": "无法生成图表（数据问题）",
         "backup_info": "自动备份使用 Streamlit Secrets: GITHUB_TOKEN / GITHUB_REPO / GITHUB_USERNAME",
         "backup_success": "备份成功",
         "backup_failed": "备份失败：",
@@ -76,6 +70,8 @@ DEFAULT_I18N = {
         "password_reset": "密码已重置",
         "user_deleted": "用户已删除",
         "translations_saved": "翻译已保存",
+        "edit_customer_label": "编辑客户信息",
+        "no_permission": "权限不足",
     },
     "English": {
         "language_label": "Select language",
@@ -112,6 +108,7 @@ DEFAULT_I18N = {
         "level_pie": "Level distribution",
         "trend": "Deal trend",
         "no_deal": "No deals",
+        "chart_error": "Cannot generate chart (data issue)",
         "backup_info": "Backups use Streamlit Secrets: GITHUB_TOKEN / GITHUB_REPO / GITHUB_USERNAME",
         "backup_success": "Backup success",
         "backup_failed": "Backup failed: ",
@@ -127,94 +124,226 @@ DEFAULT_I18N = {
         "password_reset": "Password reset",
         "user_deleted": "User deleted",
         "translations_saved": "Translations saved",
+        "edit_customer_label": "Edit customer info",
+        "no_permission": "No permission",
     },
-    "Indonesian": {},  # will fallback to provided RAW_TRANSLATIONS or DEFAULT_I18N later
-    "Khmer": {},
-    "Vietnamese": {}
+    "Indonesian": {
+        "language_label": "Pilih Bahasa",
+        "menu_navigation": "Navigasi",
+        "menu_dashboard": "📊 Dashboard",
+        "menu_customers": "👥 Pelanggan",
+        "menu_customers_all": "Semua Pelanggan",
+        "menu_customers_add": "Tambah Pelanggan",
+        "menu_followups": "📝 Tindak Lanjut",
+        "menu_followups_today": "Hari Ini",
+        "menu_followups_all": "Semua Tindak Lanjut",
+        "menu_backup": "💾 Cadangan GitHub",
+        "menu_settings": "⚙ Pengaturan",
+        "menu_users": "Manajemen Pengguna",
+        "menu_translations": "Terjemahan",
+        "menu_logs": "Log Operasi",
+        "login_title": "Masuk",
+        "username": "Nama Pengguna",
+        "password": "Kata Sandi",
+        "btn_login": "Masuk",
+        "btn_logout": "Keluar",
+        "no_data": "Tidak ada data",
+        "add_customer": "Tambah Pelanggan",
+        "submit": "Kirim",
+        "all_customers": "Semua Pelanggan",
+        "search_owner": "Cari berdasarkan penanggung jawab",
+        "input_customer_id": "Masukkan ID pelanggan",
+        "edit_customer": "Edit pelanggan",
+        "delete_customer": "Hapus pelanggan",
+        "confirm_delete": "Konfirmasi hapus pelanggan ini",
+        "followup_note": "Catatan tindak lanjut",
+        "next_action": "Tindakan selanjutnya",
+        "followup_added": "Tindak lanjut ditambahkan",
+        "level_pie": "Distribusi level",
+        "trend": "Tren transaksi",
+        "no_deal": "Belum ada transaksi",
+        "chart_error": "Tidak dapat membuat grafik (masalah data)",
+        "backup_info": "Cadangan menggunakan Streamlit Secrets: GITHUB_TOKEN / GITHUB_REPO / GITHUB_USERNAME",
+        "backup_success": "Cadangan berhasil",
+        "backup_failed": "Cadangan gagal: ",
+        "export_excel": "Ekspor Excel",
+        "owner_export": "Ekspor pelanggan penanggung jawab (Excel)",
+        "customer_details": "Detail pelanggan",
+        "created_at": "Dibuat pada",
+        "action_logs": "Log tindakan",
+        "add_user": "Tambah pengguna",
+        "reset_password": "Atur ulang kata sandi",
+        "delete_user": "Hapus pengguna",
+        "user_added": "Pengguna ditambahkan",
+        "password_reset": "Kata sandi direset",
+        "user_deleted": "Pengguna dihapus",
+        "translations_saved": "Terjemahan tersimpan",
+        "edit_customer_label": "Edit info pelanggan",
+        "no_permission": "Tidak punya izin",
+    },
+    "Khmer": {
+        "language_label": "ជ្រើសរើសភាសា",
+        "menu_navigation": "ការរុករក",
+        "menu_dashboard": "📊 Dashboard",
+        "menu_customers": "👥 អតិថិជន",
+        "menu_customers_all": "អតិថិជនទាំងអស់",
+        "menu_customers_add": "បន្ថែមអតិថិជន",
+        "menu_followups": "📝 ដំណើរការ",
+        "menu_followups_today": "ថ្ងៃនេះ",
+        "menu_followups_all": "ទាំងអស់",
+        "menu_backup": "💾 Backup",
+        "menu_settings": "⚙ ការកំណត់",
+        "menu_users": "គ្រប់គ្រងអ្នកប្រើ",
+        "menu_translations": "ការបកប្រែ",
+        "menu_logs": "កំណត់ហេតុ",
+        "login_title": "ចូលប្រព័ន្ធ",
+        "username": "ឈ្មោះអ្នកប្រើ",
+        "password": "ពាក្យសម្ងាត់",
+        "btn_login": "ចូល",
+        "btn_logout": "ចាកចេញ",
+        "no_data": "គ្មានទិន្នន័យ",
+        "add_customer": "បន្ថែមអតិថិជន",
+        "submit": "បញ្ជូន",
+        "all_customers": "អតិថិជនទាំងអស់",
+        "search_owner": "ស្វែងរកតាមអ្នកទទួលខុសត្រូវ",
+        "input_customer_id": "បញ្ចូលលេខសម្គាល់អតិថិជន",
+        "edit_customer": "កែសម្រួលអតិថិជន",
+        "delete_customer": "លុបអតិថិជន",
+        "confirm_delete": "បញ្ជាក់លុបអតិថិជននេះ",
+        "followup_note": "កំណត់សម្គាល់",
+        "next_action": "សកម្មភាពបន្ទាប់",
+        "followup_added": "បានបន្ថែមកំណត់ហេតុ",
+        "level_pie": "ចែកចាយកម្រិត",
+        "trend": "និន្នាការ",
+        "no_deal": "គ្មានការទាក់ទង",
+        "chart_error": "មិនអាចបង្កើតក្រាហ្វបាន (បញ្ហាទិន្នន័យ)",
+        "backup_info": "Backup ប្រើ Streamlit Secrets: GITHUB_TOKEN / GITHUB_REPO / GITHUB_USERNAME",
+        "backup_success": "Backup ជោគជ័យ",
+        "backup_failed": "Backup បរាជ័យ: ",
+        "export_excel": "ចេញ Excel",
+        "owner_export": "ចេញនូវអតិថិជនរបស់អ្នកទទួលខុសត្រូវ",
+        "customer_details": "ព័ត៌មានលម្អិតអតិថិជន",
+        "created_at": "បានបង្កើតនៅ",
+        "action_logs": "កំណត់ហេតុ",
+        "add_user": "បានបន្ថែមអ្នកប្រើ",
+        "reset_password": "បានកំណត់ពាក្យសម្ងាត់ឡើងវិញ",
+        "delete_user": "បានលុបអ្នកប្រើ",
+        "user_added": "បានបន្ថែមអ្នកប្រើ",
+        "password_reset": "បានកំណត់ពាក្យសម្ងាត់ឡើងវិញ",
+        "user_deleted": "បានលុបអ្នកប្រើ",
+        "translations_saved": "បានរក្សាការបកប្រែ",
+        "edit_customer_label": "កែព័ត៌មានអតិថិជន",
+        "no_permission": "គ្មានសិទ្ធិ",
+    },
+    "Vietnamese": {
+        "language_label": "Chọn ngôn ngữ",
+        "menu_navigation": "Điều hướng",
+        "menu_dashboard": "📊 Dashboard",
+        "menu_customers": "👥 Khách hàng",
+        "menu_customers_all": "Tất cả khách hàng",
+        "menu_customers_add": "Thêm khách hàng",
+        "menu_followups": "📝 Theo dõi",
+        "menu_followups_today": "Hôm nay",
+        "menu_followups_all": "Tất cả",
+        "menu_backup": "💾 Sao lưu GitHub",
+        "menu_settings": "⚙ Cài đặt",
+        "menu_users": "Quản lý người dùng",
+        "menu_translations": "Bản dịch",
+        "menu_logs": "Nhật ký",
+        "login_title": "Đăng nhập",
+        "username": "Tên đăng nhập",
+        "password": "Mật khẩu",
+        "btn_login": "Đăng nhập",
+        "btn_logout": "Đăng xuất",
+        "no_data": "Không có dữ liệu",
+        "add_customer": "Thêm khách hàng",
+        "submit": "Gửi",
+        "all_customers": "Tất cả khách hàng",
+        "search_owner": "Tìm theo phụ trách chính",
+        "input_customer_id": "Nhập ID khách hàng",
+        "edit_customer": "Chỉnh sửa khách hàng",
+        "delete_customer": "Xóa khách hàng",
+        "confirm_delete": "Xác nhận xóa khách hàng này",
+        "followup_note": "Ghi chú",
+        "next_action": "Hành động tiếp theo",
+        "followup_added": "Đã thêm ghi chú",
+        "level_pie": "Tỷ lệ cấp độ",
+        "trend": "Xu hướng giao dịch",
+        "no_deal": "Chưa có giao dịch",
+        "chart_error": "Không thể tạo biểu đồ (lỗi dữ liệu)",
+        "backup_info": "Sao lưu dùng Streamlit Secrets: GITHUB_TOKEN / GITHUB_REPO / GITHUB_USERNAME",
+        "backup_success": "Sao lưu thành công",
+        "backup_failed": "Sao lưu thất bại: ",
+        "export_excel": "Xuất Excel",
+        "owner_export": "Xuất danh sách khách hàng phụ trách",
+        "customer_details": "Chi tiết khách hàng",
+        "created_at": "Ngày tạo",
+        "action_logs": "Nhật ký hành động",
+        "add_user": "Thêm người dùng",
+        "reset_password": "Đặt lại mật khẩu",
+        "delete_user": "Xóa người dùng",
+        "user_added": "Đã thêm người dùng",
+        "password_reset": "Đã đặt lại mật khẩu",
+        "user_deleted": "Đã xóa người dùng",
+        "translations_saved": "Đã lưu bản dịch",
+        "edit_customer_label": "Chỉnh sửa thông tin khách hàng",
+        "no_permission": "Không có quyền",
+    },
 }
 
-# Safely build merged translations mapping: prefer RAW_TRANSLATIONS keys (user-provided),
-# fallback to DEFAULT_I18N if missing
-def merged_translation_for(lang_key: str):
-    # RAW_TRANSLATIONS may be in either language names or codes; user requested keys are these exact strings
-    if isinstance(RAW_TRANSLATIONS, dict) and lang_key in RAW_TRANSLATIONS and isinstance(RAW_TRANSLATIONS[lang_key], dict):
-        # merge: raw first, then default gaps
-        base = DEFAULT_I18N.get(lang_key, {}).copy()
-        base.update(RAW_TRANSLATIONS.get(lang_key, {}))
-        return base
-    # fallback to default
-    return DEFAULT_I18N.get(lang_key, {})
-
-# ensure session language exists and is one of the allowed keys
+# ------------- 语言工具 -------------
 LANG_KEYS = ["中文", "English", "Indonesian", "Khmer", "Vietnamese"]
 if "lang" not in st.session_state:
     st.session_state["lang"] = "中文"
-# normalize session lang if invalid
 if st.session_state["lang"] not in LANG_KEYS:
     st.session_state["lang"] = "中文"
 
-# helper t()
+
 def t(key: str) -> str:
     lang = st.session_state.get("lang", "中文")
-    tr = merged_translation_for(lang)
-    return tr.get(key, DEFAULT_I18N.get(lang, {}).get(key, key))
+    return TRANSLATIONS.get(lang, {}).get(key, key)
 
-# safe excel export
+# ------------- 辅助函数 -------------
 def df_to_excel_bytes(df: pd.DataFrame) -> bytes:
-    buffer = BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+    buf = BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="sheet1")
-    return buffer.getvalue()
+    return buf.getvalue()
 
-# ---------------------------
-# Sidebar — Language + Menu (结构 B)
-# ---------------------------
+# ------------- Sidebar：语言 + 菜单（B 结构） -------------
 with st.sidebar:
     st.markdown(f"### {t('menu_navigation')}")
-    # language selector (safe fallback)
-    langs = LANG_KEYS
-    current = st.session_state.get("lang", "中文")
-    if current not in langs:
-        current = "中文"
-        st.session_state["lang"] = current
-
-    new_lang = st.selectbox(t("language_label"), options=langs, index=langs.index(current))
-    if new_lang != st.session_state["lang"]:
-        st.session_state["lang"] = new_lang
+    # 语言选择
+    lang_index = LANG_KEYS.index(st.session_state.get("lang", "中文")) if st.session_state.get("lang", "中文") in LANG_KEYS else 0
+    lang_choice = st.selectbox(t("language_label"), options=LANG_KEYS, index=lang_index)
+    if lang_choice != st.session_state.get("lang"):
+        st.session_state["lang"] = lang_choice
         st.rerun()
 
     st.markdown("---")
-    # Main grouped menu B
-    main_select = st.radio("", [t("menu_dashboard"), t("menu_customers"), t("menu_followups"), t("menu_backup"), t("menu_settings")], index=0)
-    # Sub-menu area
-    sub_select = None
-    if main_select == t("menu_customers"):
-        sub_select = st.selectbox("", [t("menu_customers_all"), t("menu_customers_add")])
-    elif main_select == t("menu_followups"):
-        sub_select = st.selectbox("", [t("menu_followups_today"), t("menu_followups_all")])
-    elif main_select == t("menu_settings"):
-        # show admin sections; we hide admin-only later in routing
-        sub_select = st.selectbox("", [t("menu_users"), t("menu_translations"), t("menu_logs")])
+    # 主菜单
+    st.session_state["main_select"] = st.radio("", [t("menu_dashboard"), t("menu_customers"), t("menu_followups"), t("menu_backup"), t("menu_settings")])
+    # 子菜单
+    if st.session_state["main_select"] == t("menu_customers"):
+        st.session_state["sub_select"] = st.selectbox("", [t("menu_customers_all"), t("menu_customers_add")])
+    elif st.session_state["main_select"] == t("menu_followups"):
+        st.session_state["sub_select"] = st.selectbox("", [t("menu_followups_today"), t("menu_followups_all")])
+    elif st.session_state["main_select"] == t("menu_settings"):
+        st.session_state["sub_select"] = st.selectbox("", [t("menu_users"), t("menu_translations"), t("menu_logs")])
     else:
-        sub_select = None
+        st.session_state["sub_select"] = None
 
     st.markdown("---")
-    # show current user (if any)
     if st.session_state.get("username"):
-        st.write(f"👤 {st.session_state.get('username')}  ({st.session_state.get('role')})")
+        st.markdown(f"**👤 {st.session_state.get('username')} ({st.session_state.get('role')})**")
         if st.button(t("btn_logout")):
-            # keep language, clear rest
             lang_keep = st.session_state.get("lang", "中文")
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.session_state["lang"] = lang_keep
             st.rerun()
 
-# ---------------------------
-# Pages implementation
-# ---------------------------
-
-# Dashboard
+# ------------- 页面实现 -------------
 def page_dashboard():
     st.title(t("menu_dashboard"))
     df = customers.list_customers_df()
@@ -222,7 +351,6 @@ def page_dashboard():
         st.info(t("no_data"))
         return
 
-    # Quick metrics
     total = len(df)
     owners = df["main_owner"].nunique() if "main_owner" in df.columns else 0
     deals = df[df["progress"] == "已成交"].shape[0] if "progress" in df.columns else 0
@@ -231,7 +359,6 @@ def page_dashboard():
     c2.metric("Owners", owners)
     c3.metric("Deals", deals)
 
-    # Level pie
     st.subheader(t("level_pie"))
     try:
         pie = alt.Chart(df).mark_arc().encode(theta=alt.Theta(field="id", aggregate="count"), color="level:N")
@@ -239,7 +366,6 @@ def page_dashboard():
     except Exception:
         st.info(t("chart_error"))
 
-    # Country bar
     st.subheader("Country distribution / 国家分布")
     try:
         dfc = df.groupby("country").size().reset_index(name="count").sort_values("count", ascending=False).head(20)
@@ -248,7 +374,6 @@ def page_dashboard():
     except Exception:
         st.info(t("chart_error"))
 
-    # Deal trend
     st.subheader(t("trend"))
     try:
         df_deal = df[df["progress"] == "已成交"].copy()
@@ -262,15 +387,13 @@ def page_dashboard():
     except Exception:
         st.info(t("chart_error"))
 
-# Customers - list
 def page_customers_list():
-    st.title(t("customers_title") if "customers_title" in merged_translation_for(st.session_state["lang"]) else t("menu_customers"))
+    st.title(t("menu_customers"))
     df = customers.list_customers_df()
     if df.empty:
         st.info(t("no_data"))
         return
 
-    # permission: normal user sees only own customers
     if st.session_state.get("role") != "admin":
         me = st.session_state.get("username")
         if "main_owner" in df.columns:
@@ -278,15 +401,12 @@ def page_customers_list():
 
     st.dataframe(df, use_container_width=True)
 
-    # owner search
     owner = st.text_input(t("search_owner"))
     if owner:
-        df = df[df["main_owner"] == owner]
-        st.dataframe(df)
+        df2 = df[df["main_owner"] == owner]
+        st.dataframe(df2, use_container_width=True)
 
-    # export by owner
     if st.button(t("owner_export")):
-        # only export allowed customers for user
         buf = df_to_excel_bytes(df)
         st.download_button(label=t("export_excel"), data=buf, file_name="customers.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -299,28 +419,27 @@ def page_customers_list():
             st.error(t("no_data"))
         else:
             st.json(cust)
-            # followups list
             fu = customers.list_followups_df(cid)
             st.subheader("Followups")
             st.dataframe(fu, use_container_width=True)
-            # add followup
-            with st.form("add_followup_in_detail"):
+
+            with st.form("add_followup_detail"):
                 note = st.text_area(t("followup_note"))
                 na = st.text_input(t("next_action"))
                 if st.form_submit_button(t("submit")):
                     customers.add_followup(cid, st.session_state.get("username","system"), note, na)
                     st.success(t("followup_added"))
                     st.rerun()
-            # edit
-            if st.checkbox(t("edit_customer")):
+
+            if st.checkbox(t("edit_customer_label")):
                 exist = dict(cust)
                 with st.form(f"editcust_{cid}"):
                     for fld in ["name","whatsapp","line","telegram","country","city","age","job","income","marital_status","deal_amount","level","progress","main_owner","assistant","notes"]:
                         cur = exist.get(fld,"")
-                        if fld in ["age"]:
+                        if fld == "age":
                             val = st.number_input(fld, value=int(cur) if cur not in [None,""] else 0)
                             exist[fld] = val
-                        elif fld in ["deal_amount"]:
+                        elif fld == "deal_amount":
                             val = st.number_input(fld, value=float(cur) if cur not in [None,""] else 0.0)
                             exist[fld] = val
                         else:
@@ -329,14 +448,13 @@ def page_customers_list():
                         customers.update_customer(cid, exist, operator=st.session_state.get("username","system"))
                         st.success("已更新")
                         st.rerun()
-            # delete
+
             if st.checkbox(t("confirm_delete")):
-                if st.button(t("delete_customer")):
+                if st.form_submit_button(t("delete_customer")):
                     customers.delete_customer(cid, operator=st.session_state.get("username","system"))
                     st.success("已删除")
                     st.rerun()
 
-# Customers - add
 def page_customers_add():
     st.title(t("add_customer"))
     with st.form("form_add_customer"):
@@ -360,57 +478,53 @@ def page_customers_add():
         rec["operator"] = st.session_state.get("username","system")
         if st.form_submit_button(t("submit")):
             cid = customers.insert_customer(rec)
-            st.success(f"客户已添加：{cid}")
+            st.success(f"{t('add_customer')}：{cid}")
             st.rerun()
 
-# Followups Today
 def page_followups_today():
     st.title(t("menu_followups") + " - " + t("menu_followups_today"))
-    # We'll collect followups for the last 1 day from followups table
-    df_all = []
     df_cust = customers.list_customers_df()
     if df_cust.empty:
         st.info(t("no_data"))
         return
+    list_fu = []
     for cid in df_cust['id'].tolist():
         fu = customers.list_followups_df(cid)
-        if not fu.empty:
-            df_all.append(fu)
-    if not df_all:
+        if fu is not None and not fu.empty:
+            list_fu.append(fu)
+    if not list_fu:
         st.info(t("no_data"))
         return
-    df_all = pd.concat(df_all, ignore_index=True)
+    df_all = pd.concat(list_fu, ignore_index=True)
     df_all['created_at'] = pd.to_datetime(df_all['created_at'], errors='coerce')
     cutoff = datetime.utcnow() - timedelta(days=1)
     df_show = df_all[df_all['created_at'] >= cutoff]
     if df_show.empty:
         st.info(t("no_data"))
     else:
-        st.dataframe(df_show.sort_values("created_at", ascending=False))
+        st.dataframe(df_show.sort_values("created_at", ascending=False), use_container_width=True)
 
-# Followups All
 def page_followups_all():
     st.title(t("menu_followups") + " - " + t("menu_followups_all"))
-    df_list = []
     df_cust = customers.list_customers_df()
     if df_cust.empty:
         st.info(t("no_data"))
         return
+    list_fu = []
     for cid in df_cust['id'].tolist():
         fu = customers.list_followups_df(cid)
-        if not fu.empty:
-            df_list.append(fu)
-    if not df_list:
+        if fu is not None and not fu.empty:
+            list_fu.append(fu)
+    if not list_fu:
         st.info(t("no_data"))
         return
-    df_all = pd.concat(df_list, ignore_index=True)
+    df_all = pd.concat(list_fu, ignore_index=True)
     st.dataframe(df_all.sort_values("created_at", ascending=False), use_container_width=True)
     if st.button(t("export_excel")):
         b = df_to_excel_bytes(df_all)
         st.download_button(label=t("export_excel"), data=b, file_name="followups.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-# Backup page
-def page_backup():
+def page_backup_admin():
     st.title(t("menu_backup"))
     st.info(t("backup_info"))
     if st.button("Run backup"):
@@ -420,21 +534,25 @@ def page_backup():
         else:
             st.error(t("backup_failed") + str(msg))
 
-# Admin: users
 def page_users_admin():
+    if st.session_state.get("role") != "admin":
+        st.warning(t("no_permission"))
+        return
     st.title(t("menu_users"))
     df = auth.list_users()
     st.dataframe(df, use_container_width=True)
+
     st.subheader(t("add_user"))
     with st.form("form_add_user"):
         u = st.text_input("用户名")
         p = st.text_input("密码")
         r = st.selectbox("角色", ["user","admin"])
-        lang = st.selectbox("默认语言", LANG_KEYS := LANG_KEYS if 'LANG_KEYS' in globals() else ["中文","English","Indonesian","Khmer","Vietnamese"], index=0)
+        lang_sel = st.selectbox("默认语言", options=LANG_KEYS := LANG_KEYS if 'LANG_KEYS' in globals() else ["中文","English","Indonesian","Khmer","Vietnamese"], index=0)
         if st.form_submit_button(t("submit")):
-            auth.add_user(u, p, r, lang)
+            auth.add_user(u, p, r, lang_sel)
             st.success(t("user_added"))
             st.rerun()
+
     st.subheader(t("reset_password"))
     with st.form("form_reset_pass"):
         ru = st.text_input("用户名（重置）")
@@ -442,6 +560,7 @@ def page_users_admin():
         if st.form_submit_button(t("submit")):
             auth.reset_password(ru, rp)
             st.success(t("password_reset"))
+
     st.subheader(t("delete_user"))
     du = st.text_input("要删除的用户名")
     if st.button(t("delete_user")):
@@ -449,13 +568,15 @@ def page_users_admin():
         st.success(t("user_deleted"))
         st.rerun()
 
-# Admin: translations
 def page_translations_admin():
+    if st.session_state.get("role") != "admin":
+        st.warning(t("no_permission"))
+        return
     st.title(t("menu_translations"))
-    data = translate.load_translations()
+    current = translate.load_translations()
     st.subheader("当前翻译 JSON：")
-    st.json(data, expanded=False)
-    new = st.text_area("编辑翻译 JSON（格式必须正确）", value=str(data), height=300)
+    st.json(current)
+    new = st.text_area("编辑翻译 JSON（格式必须正确）", value=str(current), height=300)
     if st.button("保存翻译"):
         try:
             obj = eval(new)
@@ -465,48 +586,48 @@ def page_translations_admin():
         except Exception as e:
             st.error(str(e))
 
-# Admin: logs
 def page_logs_admin():
+    if st.session_state.get("role") != "admin":
+        st.warning(t("no_permission"))
+        return
     st.title(t("menu_logs"))
     df = logs.recent_actions(1000)
-    st.dataframe(df)
+    st.dataframe(df, use_container_width=True)
 
-# Router
-def route(main_sel, sub_sel):
-    if main_sel == t("menu_dashboard"):
+# ------------- 路由 -------------
+def route():
+    main = st.session_state.get("main_select", t("menu_dashboard"))
+    sub = st.session_state.get("sub_select", None)
+    if main == t("menu_dashboard"):
         page_dashboard()
-    elif main_sel == t("menu_customers"):
-        if sub_sel == t("menu_customers_add"):
+    elif main == t("menu_customers"):
+        if sub == t("menu_customers_add"):
             page_customers_add()
         else:
             page_customers_list()
-    elif main_sel == t("menu_followups"):
-        if sub_sel == t("menu_followups_today"):
+    elif main == t("menu_followups"):
+        if sub == t("menu_followups_today"):
             page_followups_today()
         else:
             page_followups_all()
-    elif main_sel == t("menu_backup"):
-        # admin only for backup button? But everyone can see info
-        page_backup()
-    elif main_sel == t("menu_settings"):
-        # admin-only subpages
-        if st.session_state.get("role") != "admin":
-            st.warning("Admin only")
-            return
-        if sub_sel == t("menu_users"):
+    elif main == t("menu_backup"):
+        page_backup_admin()
+    elif main == t("menu_settings"):
+        # admin subpages through sub_select
+        if sub == t("menu_users"):
             page_users_admin()
-        elif sub_sel == t("menu_translations"):
+        elif sub == t("menu_translations"):
             page_translations_admin()
-        elif sub_sel == t("menu_logs"):
+        elif sub == t("menu_logs"):
             page_logs_admin()
+        else:
+            st.info("Select setting item")
     else:
         st.info("Unknown page")
 
-# ---------------------------
-# Main entry
-# ---------------------------
+# ------------- 主入口 -------------
 def main():
-    # if not logged in -> show login area
+    # 如果未登录显示登录页
     if "username" not in st.session_state:
         st.title(PAGE_TITLE)
         st.subheader(t("login_title"))
@@ -517,7 +638,6 @@ def main():
             if info:
                 st.session_state["username"] = info["username"]
                 st.session_state["role"] = info.get("role", "user")
-                # set language from user record if present and valid
                 user_lang = info.get("language")
                 if user_lang in LANG_KEYS:
                     st.session_state["lang"] = user_lang
@@ -526,20 +646,8 @@ def main():
                 st.error("用户名或密码错误")
         return
 
-    # if logged in -> call route according to sidebar selection variables set earlier
-    # We captured main_select and sub_select in sidebar context; because Streamlit runs top-down,
-    # they are available as local variables; however to be safe, we reconstruct selection from UI:
-    try:
-        # Use the values from sidebar radio/selectbox (they are in local vars: main_select, sub_select)
-        # Attempt to read from the top of this script's context
-        ms = main_select
-        ss = sub_select
-    except Exception:
-        # fallback to dashboard
-        ms = t("menu_dashboard")
-        ss = None
-
-    route(ms, ss)
+    # 已登录 -> 路由页面
+    route()
 
 if __name__ == "__main__":
     main()
